@@ -80,3 +80,6 @@ tbody tr:hover { background: #f5f9fd; }
 .pill.shipped-from-cisco { background: var(--info-bg); color: var(--info); border-color: var(--info); }
 .pill.asea-hold { background: #f6ecfb; color: #925ace; border-color: #925ace; }
 .pill.scheduling-pending { background: #f2f2f2; color: var(--muted); border-color: var(--line); }
+
+.shellbar .dbname { font-size: 13px; color: #dbe4ec; padding: 4px 10px; border: 1px solid #5b738b; border-radius: 4px; }
+.shellbar .dbname b { color: #fff; }

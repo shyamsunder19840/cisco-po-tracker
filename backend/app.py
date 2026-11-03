@@ -150,6 +150,20 @@ def get_history():
     return jsonify(history.days())
 
 
+def _database_name():
+    """Business Central environment (database) the app talks to, taken from the configured API URL."""
+    for key in ("BC_PO_URL", "BC_SYNC_API_URL", "BC_T1_API_URL"):
+        m = re.search(r"/v2\.0/(?:[0-9a-fA-F-]{36}/)?([^/]+)/", os.environ.get(key, ""))
+        if m:
+            return m.group(1)
+    return ""
+
+
+@app.get("/api/info")
+def info():
+    return jsonify(database=_database_name())
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True}

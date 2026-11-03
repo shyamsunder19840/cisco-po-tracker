@@ -127,3 +127,8 @@ export async function downloadComplete(job_id) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function getInfo() {
+  const r = await fetch("/api/info");
+  return r.ok ? r.json() : {};
+}

@@ -3,7 +3,7 @@ import Settings from "./Settings.jsx";
 import SyncDialog from "./SyncDialog.jsx";
 import T1Dialog from "./T1Dialog.jsx";
 import DailyTracker from "./DailyTracker.jsx";
-import { downloadComplete, downloadExcel, getProgress, submitByDate, submitByT1, submitPOs } from "./api.js";
+import { getInfo, downloadComplete, downloadExcel, getProgress, submitByDate, submitByT1, submitPOs } from "./api.js";
 
 // Preferred column order; any other field Cisco returns is appended after these.
 const KNOWN = [
@@ -46,6 +46,9 @@ export default function App() {
   const [showT1, setShowT1] = useState(false);
   const [lastRun, setLastRun] = useState(null); // inputs of the last Check status, used to prefill the T1 report
   const timer = useRef(null);
+
+  const [database, setDatabase] = useState("");
+  useEffect(() => { getInfo().then((i) => setDatabase(i.database || "")).catch(() => {}); }, []);
 
   useEffect(() => () => clearInterval(timer.current), []);
 
@@ -117,6 +120,7 @@ export default function App() {
         <h1>Cisco PO Status Tracker</h1>
         <p>Proactive Data Systems Pvt. Ltd.</p>
         <span className="grow" />
+        {database && <span className="dbname" title="Business Central database (environment)">Database: <b>{database}</b></span>}
         <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
           <span aria-hidden>&#9881;</span> Settings
         </button>
