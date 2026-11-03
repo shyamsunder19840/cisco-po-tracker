@@ -148,6 +148,11 @@ export default function SyncDialog({ job, onClose }) {
                     </div>
                   )}
                   {st.details.length > 0 && (
+                    <details className="details-box">
+                      <summary>
+                        Show details ({st.details.length} line{st.details.length === 1 ? "" : "s"}
+                        {st.details.some((d) => d.warnings.length || d.error) ? ", with warnings" : ""})
+                      </summary>
                     <div className="table-wrap small">
                       <table>
                         <thead>
@@ -171,6 +176,7 @@ export default function SyncDialog({ job, onClose }) {
                         </tbody>
                       </table>
                     </div>
+                    </details>
                   )}
                   {st.details.length >= 1000 && <small>Showing the first 1000 results.</small>}
                 </>

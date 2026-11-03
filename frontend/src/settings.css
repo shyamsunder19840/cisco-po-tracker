@@ -91,3 +91,7 @@ ul.stepper li b { color: var(--text); }
 ul.stepper li.active { border-left-color: var(--blue); background: #f5faff; }
 ul.stepper li.done { border-left-color: var(--ok); background: #f1fdf6; }
 ul.stepper li.skip { border-left-color: var(--warn); background: #fef7f1; }
+
+/* Collapsible details list in the sync result */
+details.details-box > summary { cursor: pointer; font-weight: 600; color: var(--blue); padding: 6px 0; }
+details.details-box[open] > summary { margin-bottom: 8px; }
