@@ -184,6 +184,19 @@ class RunTests(unittest.TestCase):
         self.assertEqual(st["counts"]["updated"], 3)
         self.assertEqual((self.t1_calls, st["t1"]["skipped"]), ([], "not published"))
 
+    def test_cancel_stops_before_the_next_po(self):
+        jobs.JOBS["j1"]["rows"] += [row(po="POCSIN2", line="1")]
+        bcsync.fetch_lines = lambda docs: (time.sleep(0.3), [])[1]   # slow enough to cancel in between
+        sync.WORKERS = 1
+        sid = sync.start("j1", False)
+        time.sleep(0.1)
+        self.assertTrue(sync.cancel(sid))
+        while sync.get(sid)["status"] == "running":
+            time.sleep(0.05)
+        st = sync.get(sid)
+        self.assertEqual((st["status"], st["activity"], st["done"]), ("cancelled", "Cancelled", 2))
+        self.assertFalse(sync.cancel(sid))                          # nothing left to cancel
+
     def test_missing_api_fails_cleanly(self):
         def boom():
             raise bcsync.SyncApiMissing("not published")

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getSync, startSync } from "./api.js";
+import { cancelSync, getSync, startSync } from "./api.js";
 
 const LABELS = {
   updated: "Updated",
@@ -18,15 +18,23 @@ const FIELD_NAMES = {
 };
 
 export default function SyncDialog({ job, onClose }) {
-  const [phase, setPhase] = useState("confirm"); // confirm | running | done
+  const [phase, setPhase] = useState("running"); // running | done  (the sync starts as soon as the window opens)
   const [st, setSt] = useState(null);
   const [error, setError] = useState("");
   const timer = useRef(null);
+  const syncId = useRef(null);
+  const started = useRef(false);
 
   const rows = job.rows;
   const poCount = new Set(rows.map((r) => r["PO ID"])).size;
 
   useEffect(() => () => clearInterval(timer.current), []);
+  useEffect(() => {
+    if (!started.current) {
+      started.current = true;
+      run(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && phase !== "running" && onClose();
     window.addEventListener("keydown", onKey);
@@ -39,6 +47,7 @@ export default function SyncDialog({ job, onClose }) {
     setPhase("running");
     try {
       const { sync_id } = await startSync(job.id, dry);
+      syncId.current = sync_id;
       timer.current = setInterval(async () => {
         try {
           const p = await getSync(sync_id, false);
@@ -70,24 +79,6 @@ export default function SyncDialog({ job, onClose }) {
         </div>
 
         <div className="modal-body">
-          {phase === "confirm" && (
-            <>
-              <p>
-                Sync <b>{rows.length}</b> line(s) from <b>{poCount}</b> PO(s) into the Business Central purchase lines.
-              </p>
-              <ul className="steps">
-                <li>Lines are found by <b>PO No. + “-M” and “-S”</b> and <b>Buyers Line No. = PO Line Number</b>.</li>
-                <li>Updated: CISCO SO Line No. ← SO Line Ref · Shipset ← Line ID Set · CISCO Delivery Status ← Status Code ·
-                  Scheduled_Date ← Final Scheduled Ship Date (the old date is added to Previous Scheduled Date).</li>
-                <li>Estimate Delivery Date ← the latest Final Scheduled Ship Date of the PO + the days set in Settings (14); if that lands on a Saturday or Sunday it moves to the following Monday.</li>
-                <li>After the purchase lines of a PO are updated, its <b>T1 Process Data</b> lines are rebuilt in Business Central (same logic as Report 80000).</li>
-                <li>Blank Cisco values never overwrite what is already in Business Central.</li>
-                <li>Only the fetched rows are synced (rows hidden by the Status Code filter are not); the table search box has no effect.</li>
-              </ul>
-              <div className="warn">This writes to the live Business Central database. Use <b>Preview</b> first to see what would change.</div>
-            </>
-          )}
-
           {phase === "running" && (
             <>
               <div className="progress-head">
@@ -123,7 +114,9 @@ export default function SyncDialog({ job, onClose }) {
               {st && !failed && (
                 <>
                   <div className="info">
-                    {st.dry_run ? "Preview only — nothing was written to Business Central." : "Sync finished."}
+                    {st.dry_run ? "Preview only — nothing was written to Business Central."
+                      : st.status === "cancelled" ? "Sync cancelled — lines already processed stay saved in Business Central; the rest were not touched."
+                      : "Sync finished."}
                   </div>
                   <div className="counts">
                     {Object.entries(LABELS).map(([k, label]) => (
@@ -189,19 +182,16 @@ export default function SyncDialog({ job, onClose }) {
         <div className="drawer-foot">
           <div className="row">
             <span className="spacer" />
-            {phase === "confirm" && (
-              <>
-                <button onClick={onClose}>Cancel</button>
-                <button onClick={() => run(true)}>Preview (no changes)</button>
-                <button className="primary" onClick={() => run(false)}>Sync now</button>
-              </>
+            {phase === "running" && (
+              <button
+                onClick={() => syncId.current && cancelSync(syncId.current).catch((e) => setError(e.message))}
+                disabled={!syncId.current || st?.cancel}
+                title="Stop after the PO that is being processed right now; what is already saved stays saved"
+              >
+                {st?.cancel ? "Cancelling…" : "Cancel"}
+              </button>
             )}
-            {phase === "done" && (
-              <>
-                <button onClick={onClose}>Close</button>
-                {st?.dry_run && !failed && <button className="primary" onClick={() => run(false)}>Sync now</button>}
-              </>
-            )}
+            {phase === "done" && <button onClick={onClose}>Close</button>}
           </div>
         </div>
       </div>

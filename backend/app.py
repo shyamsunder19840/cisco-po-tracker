@@ -91,13 +91,18 @@ def start_sync():
     return jsonify(sync_id=sid, total=st["total"], lines=st["lines"], dry_run=st["dry_run"])
 
 
+@app.post("/api/sync/<sid>/cancel")
+def sync_cancel(sid):
+    return (jsonify(ok=True), 200) if sync.cancel(sid) else (jsonify(error="Unknown or finished sync"), 404)
+
+
 @app.get("/api/sync/<sid>")
 def sync_progress(sid):
     st = sync.get(sid)
     if not st:
         return jsonify(error="Unknown sync"), 404
     out = {k: st[k] for k in ("id", "status", "dry_run", "total", "done", "lines", "counts", "error", "po_errors",
-                              "activity", "lines_done", "t1")}
+                              "activity", "lines_done", "t1", "cancel")}
     out["details"] = [] if request.args.get("details") == "0" else list(st["details"])
     return jsonify(out)
 

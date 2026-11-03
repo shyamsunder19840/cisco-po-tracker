@@ -201,7 +201,7 @@ def start(job_id, dry_run=False):
           "done": 0, "lines": len(job["rows"]), "counts": {"updated": 0, "would_update": 0, "unchanged": 0,
           "no_match": 0, "error": 0}, "details": [], "error": None, "po_errors": [], "started": time.time(),
           # live progress: what is going on right now, and the two steps run for every PO
-          "activity": "Starting…", "lines_done": 0,
+          "activity": "Starting…", "lines_done": 0, "cancel": False,
           "t1": {"docs": 0, "rows": None, "would": 0, "errors": 0, "skipped": None}}
     SYNCS[sid] = st
     lock = threading.Lock()
@@ -209,6 +209,8 @@ def start(job_id, dry_run=False):
 
     def process(po, rows):
         """Step 1: update the purchase lines. Step 2: rebuild the T1 Process Data lines of the updated orders."""
+        if st["cancel"]:  # cancelled: POs not started yet are skipped, the one in progress finishes
+            return [], [], None
         st["activity"] = f"Updating purchase lines — {po}"
         res = _sync_po(po, rows, dry_run, days, fmt)
         with lock:
@@ -267,8 +269,8 @@ def start(job_id, dry_run=False):
                         if (rec["status"] != "unchanged" or rec["warnings"]) and len(st["details"]) < MAX_DETAILS:
                             st["details"].append(rec)
                     st["done"] += 1
-        st["activity"] = "Finished"
-        st["status"] = "done"
+        st["activity"] = "Cancelled" if st["cancel"] else "Finished"
+        st["status"] = "cancelled" if st["cancel"] else "done"
 
     def finish():
         work()
@@ -280,6 +282,16 @@ def start(job_id, dry_run=False):
 
     threading.Thread(target=finish, daemon=True).start()
     return sid
+
+
+def cancel(sid):
+    """Stop a running sync after the PO that is being processed right now. Returns False if there is none."""
+    st = SYNCS.get(sid)
+    if not st or st["status"] != "running":
+        return False
+    st["cancel"] = True
+    st["activity"] = "Cancelling — finishing the current PO…"
+    return True
 
 
 def get(sid):

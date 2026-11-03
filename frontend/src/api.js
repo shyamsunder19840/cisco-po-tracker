@@ -80,6 +80,11 @@ export async function startSync(job_id, dry_run) {
   return data;
 }
 
+export async function cancelSync(id) {
+  const r = await fetch(`/api/sync/${id}/cancel`, { method: "POST" });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Could not cancel");
+}
+
 export async function getSync(id, withDetails = true) {
   const r = await fetch(`/api/sync/${id}${withDetails ? "" : "?details=0"}`);
   if (!r.ok) throw new Error("Sync not found");
