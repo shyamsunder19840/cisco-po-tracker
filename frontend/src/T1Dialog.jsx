@@ -4,12 +4,13 @@ import { downloadT1Report } from "./api.js";
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
 
-export default function T1Dialog({ onClose }) {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
+// prefill: the filter of the last "Check status" run ({ cpos, ppos, from, to }), so the report starts with the same values
+export default function T1Dialog({ onClose, prefill = {} }) {
+  const [from, setFrom] = useState(prefill.from || monthStart());
+  const [to, setTo] = useState(prefill.to || today());
   const [bsos, setBsos] = useState("");
-  const [cpos, setCpos] = useState("");
-  const [ppos, setPpos] = useState("");
+  const [cpos, setCpos] = useState(prefill.cpos || "");
+  const [ppos, setPpos] = useState(prefill.ppos || "");
   const byNumber = !!(bsos.trim() || cpos.trim() || ppos.trim()); // numbers entered -> the date range is not applied
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // {type, text}

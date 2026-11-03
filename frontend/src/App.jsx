@@ -15,6 +15,15 @@ const KNOWN = [
   "Delivery Status", "Final Scheduled Ship Date",
 ];
 
+// T1 report filter taken from the last Check status: PO numbers -> Proactive PO, Customer PO -> Customer PO, dates -> dates
+function t1Prefill(run) {
+  if (!run) return {};
+  const list = (txt) => txt.split(/[\s,;]+/).filter(Boolean).join("\n");
+  if (run.tab === "po") return { ppos: list(run.poText) };
+  if (run.tab === "t1") return { cpos: list(run.bsoText) };
+  return { from: run.from, to: run.to };
+}
+
 const PAGE = 100;
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
@@ -35,6 +44,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showSync, setShowSync] = useState(false);
   const [showT1, setShowT1] = useState(false);
+  const [lastRun, setLastRun] = useState(null); // inputs of the last Check status, used to prefill the T1 report
   const timer = useRef(null);
 
   useEffect(() => () => clearInterval(timer.current), []);
@@ -64,6 +74,7 @@ export default function App() {
     setJob(null);
     setPage(0);
     setBusy(true);
+    setLastRun({ tab, poText, bsoText, from, to });
     try {
       const res = tab === "po" ? await submitPOs(poText)
         : tab === "t1" ? await submitByT1(bsoText)
@@ -113,7 +124,7 @@ export default function App() {
     <div className="page">
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showSync && <SyncDialog job={job} onClose={() => setShowSync(false)} />}
-      {showT1 && <T1Dialog onClose={() => setShowT1(false)} />}
+      {showT1 && <T1Dialog onClose={() => setShowT1(false)} prefill={t1Prefill(lastRun)} />}
 
       {view === "home" && <DailyTracker onStart={() => setView("run")} />}
       {view === "run" && (
