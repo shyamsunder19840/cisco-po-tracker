@@ -105,16 +105,23 @@ def sync_progress(sid):
 def t1_report():
     """Excel export of Report 80000 (T1 Process Batch) output for a BSO Order Date range."""
     body = request.get_json(silent=True) or {}
-    f, t = body.get("from_date"), body.get("to_date")
+    f, t = body.get("from_date") or None, body.get("to_date") or None
+    split = lambda key: [x for x in re.split(r"[\s,;]+", body.get(key) or "") if x]  # noqa: E731
+    bsos, cpos = split("bso_nos"), split("customer_pos")
+    # Proactive (Cisco) PO numbers: T1 stores them with the -M / -S suffix, so match all three spellings
+    ppos = [v for p in dict.fromkeys(bc.strip_suffix(x) for x in split("proactive_pos")) for v in (p, p + "-M", p + "-S")]
+    if bool(f) != bool(t):
+        return jsonify(error="Enter both the Start and End date, or leave both empty."), 400
+    if not (f or bsos or cpos or ppos):
+        return jsonify(error="Enter a date range or at least one PO / BSO number."), 400
     try:
-        if date.fromisoformat(f) > date.fromisoformat(t):
+        if f and date.fromisoformat(f) > date.fromisoformat(t):
             return jsonify(error="Start date must be on or before End date."), 400
     except (TypeError, ValueError):
-        return jsonify(error="Start and End dates are required (YYYY-MM-DD)."), 400
-    bsos = [x for x in re.split(r"[\s,;]+", body.get("bso_nos") or "") if x]
+        return jsonify(error="Dates must be YYYY-MM-DD."), 400
     limit = int(os.environ.get("T1_MAX_ROWS", 100000))
     try:
-        rows = t1report.fetch_rows(f, t, bsos, limit=limit)
+        rows = t1report.fetch_rows(f, t, bsos, limit=limit, customer_pos=cpos, proactive_pos=ppos)
     except OverflowError:
         return jsonify(error=f"More than {limit} rows found. Please choose a shorter date range."), 400
     except ValueError as e:
@@ -124,9 +131,9 @@ def t1_report():
     except Exception as e:  # noqa: BLE001
         return jsonify(error=f"Business Central request failed: {e}"), 502
     if not rows:
-        return jsonify(error="No T1 Process data found for that date range."), 404
+        return jsonify(error="No T1 Process data found for those filters."), 404
     resp = send_file(t1report.build_xlsx(rows), as_attachment=True,
-                     download_name=f"T1_Process_Report_{f}_to_{t}.xlsx",
+                     download_name=f"T1_Process_Report_{f}_to_{t}.xlsx" if f else f"T1_Process_Report_{date.today()}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp.headers["X-Row-Count"] = str(len(rows))
     return resp

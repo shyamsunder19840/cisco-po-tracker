@@ -93,6 +93,13 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(kw["headers"]["Prefer"], "odata.maxpagesize=5000")
         self.assertIsNone(self.calls[1][1]["params"])            # next page: no extra params
 
+    def test_po_filters_without_dates(self):
+        t1report.fetch_rows(None, None, customer_pos=["4500348821"], proactive_pos=["POCSIN1", "POCSIN1-M"])
+        flt = self.calls[0][1]["params"]["$filter"]
+        self.assertNotIn("bsoOrderDate", flt)
+        self.assertIn("customerPONo eq '4500348821'", flt)
+        self.assertIn("proactivePONo eq 'POCSIN1' or proactivePONo eq 'POCSIN1-M'", flt)
+
     def test_row_limit(self):
         with self.assertRaises(OverflowError):
             t1report.fetch_rows("2026-10-01", "2026-10-30", limit=2)

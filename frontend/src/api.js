@@ -86,11 +86,11 @@ export async function getSync(id, withDetails = true) {
   return r.json();
 }
 
-export async function downloadT1Report(from_date, to_date, bso_nos) {
+export async function downloadT1Report(filters) {
   const r = await fetch("/api/t1report", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from_date, to_date, bso_nos }),
+    body: JSON.stringify(filters),
   });
   if (!r.ok) {
     const data = await r.json().catch(() => ({}));
