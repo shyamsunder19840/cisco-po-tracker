@@ -1,0 +1,41 @@
+# Render Blueprint: connect the repo on Render and it reads this file.
+# Secrets and URLs are NOT stored here (sync: false): enter them once in the Render dashboard
+# (Environment > "Add from .env" lets you paste the contents of backend/.env in one go).
+services:
+  - type: web
+    name: cisco-po-tracker
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Off on purpose, as for the BSPL app: deploy deliberately with "Manual Deploy" when a change is ready.
+    autoDeploy: false
+    envVars:
+      # Cisco token + order status
+      - {key: CISCO_TOKEN_URL, sync: false}
+      - {key: CISCO_ORDER_URL, sync: false}
+      - {key: CISCO_URL_CLIENT_ID, sync: false}
+      - {key: CISCO_URL_CLIENT_SECRET, sync: false}
+      - {key: CISCO_HDR_CLIENT_ID, sync: false}
+      - {key: CISCO_HDR_CLIENT_SECRET, sync: false}
+      # Business Central
+      - {key: BC_TENANT, sync: false}
+      - {key: BC_CLIENT_ID, sync: false}
+      - {key: BC_CLIENT_SECRET, sync: false}
+      - {key: BC_USERNAME, sync: false}
+      - {key: BC_PASSWORD, sync: false}
+      - {key: BC_RESOURCE, sync: false}
+      - {key: BC_PO_URL, sync: false}
+      - {key: BC_SYNC_API_URL, sync: false}
+      - {key: BC_T1_API_URL, sync: false}
+      # Behaviour (safe defaults; change here or in the app's Settings, which resets on redeploy)
+      - {key: BC_PO_PREFIX, value: POCSIN}
+      - {key: MAX_PO_PER_SEARCH, value: "2000"}
+      - {key: CISCO_WORKERS, value: "10"}
+      - {key: CISCO_CACHE_SECONDS, value: "600"}
+      - {key: STATUS_FILTER_ENABLED, value: "true"}
+      - {key: STATUS_FILTER_VALUES, value: "Fulfillment in Progress, Scheduled, Booked, Closed"}
+      - {key: SYNC_ESTIMATE_DAYS, value: "14"}
+      - {key: SYNC_DATE_FORMAT, value: "%d-%m-%y"}
+      - {key: T1_MAX_ROWS, value: "100000"}

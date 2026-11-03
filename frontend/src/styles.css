@@ -1,0 +1,82 @@
+/* SAP Fiori-style look (Quartz Light palette): dark shell bar, icon-tab-bar tabs, flat cards, object-status colours.
+   Original styling written for this app; no SAP logos or assets are used. */
+:root {
+  --blue: #0a6ed1;          /* Fiori brand / emphasized */
+  --blue-dark: #0854a0;
+  --shell: #354a5f;         /* shell bar */
+  --bg: #f7f7f7;
+  --line: #d9d9d9;
+  --text: #32363a;
+  --muted: #6a6d70;
+  --ok: #107e3e; --ok-bg: #f1fdf6;
+  --warn: #e9730c; --warn-bg: #fef7f1;
+  --bad: #bb0000; --bad-bg: #ffeaea;
+  --info: #0a6ed1; --info-bg: #f5faff;
+  font-family: "72", "72full", Arial, Helvetica, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
+.page { max-width: 1400px; margin: 0 auto; padding: 16px 16px 48px; }
+
+/* Shell bar */
+.shellbar { background: var(--shell); color: #fff; height: 44px; padding: 0 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 4px rgba(0,0,0,.25); position: sticky; top: 0; z-index: 40; }
+.shellbar .logo { width: 26px; height: 26px; border-radius: 4px; background: var(--blue); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.shellbar h1 { margin: 0; font-size: 16px; font-weight: 600; color: #fff; }
+.shellbar p { margin: 0; font-size: 12px; color: #c9d3dd; padding-left: 12px; border-left: 1px solid #5b738b; }
+.shellbar .grow { flex: 1; }
+.settings-btn { background: transparent !important; border: 1px solid transparent !important; color: #fff !important; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.settings-btn:hover { background: #435b73 !important; }
+
+/* Cards (Fiori panels) */
+.card { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 0 0 1px rgba(0,0,0,.02), 0 2px 4px rgba(0,0,0,.08); }
+
+/* Icon tab bar */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { padding: 10px 16px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--text); cursor: pointer; font-size: 14px; margin-bottom: -1px; }
+.tabs button:hover { background: #f2f2f2; }
+.tabs button.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; background: none; }
+
+label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+textarea, input, select { font: inherit; color: var(--text); padding: 7px 10px; border: 1px solid #89919a; border-radius: 4px; background: #fff; }
+textarea:focus, input:focus, select:focus { outline: 2px solid var(--blue); outline-offset: -1px; border-color: var(--blue); }
+.dates { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.dates small, small { color: var(--muted); }
+
+/* Buttons: emphasized / default */
+button { font-family: inherit; font-size: 14px; }
+button.primary { align-self: flex-start; background: var(--blue); color: #fff; border: 1px solid var(--blue); padding: 7px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
+button.sync-btn, .toolbar button, .pager button, button.icon { background: #fff; color: var(--blue); border: 1px solid var(--blue); padding: 7px 16px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+button.icon, .pager button { border-color: var(--line); padding: 6px 12px; }
+button.sync-btn:hover:not(:disabled), .toolbar button:hover, .pager button:hover:not(:disabled), button.icon:hover { background: #ebf5fe; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+.back-btn { margin-bottom: 8px; background: none; border: none; color: var(--blue); cursor: pointer; padding: 0; font-weight: 600; }
+
+/* Message strips */
+.error, .msg.error { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); border-radius: 4px; padding: 8px 12px; }
+.warn { background: var(--warn-bg); color: #8a4a00; border: 1px solid var(--warn); border-radius: 4px; padding: 8px 12px; }
+.info, .msg.info { background: var(--info-bg); color: var(--blue-dark); border: 1px solid var(--info); border-radius: 4px; padding: 8px 12px; }
+.msg.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); }
+
+.progress-head { display: flex; justify-content: space-between; }
+.bar { height: 6px; background: #e5e5e5; border-radius: 3px; overflow: hidden; }
+.bar div { height: 100%; background: var(--blue); transition: width .3s; }
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toolbar input { flex: 1; min-width: 200px; }
+.count { color: var(--muted); }
+
+/* Table (Fiori responsive table look) */
+.table-wrap { overflow: auto; max-height: 65vh; border: 1px solid var(--line); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { position: sticky; top: 0; background: #f2f2f2; color: var(--text); text-align: left; padding: 9px 12px; white-space: nowrap; font-weight: 600; border-bottom: 1px solid #bfbfbf; }
+td { padding: 8px 12px; border-top: 1px solid #e5e5e5; white-space: nowrap; }
+tbody tr:hover { background: #f5f9fd; }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; color: var(--muted); }
+
+/* Object status */
+.pill { padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #eee; color: var(--text); border: 1px solid transparent; }
+.pill.scheduled { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.pill.dates-shifted { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.pill.shipped-from-cisco { background: var(--info-bg); color: var(--info); border-color: var(--info); }
+.pill.asea-hold { background: #f6ecfb; color: #925ace; border-color: #925ace; }
+.pill.scheduling-pending { background: #f2f2f2; color: var(--muted); border-color: var(--line); }
