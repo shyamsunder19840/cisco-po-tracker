@@ -28,6 +28,7 @@ FIELDS = [
     ("STATUS_FILTER_ENABLED", "Filter by Status Code", "Data filter", False, "bool"),
     ("STATUS_FILTER_VALUES", "Keep only these Status Codes (one per line)", "Data filter", False, "list"),
     ("BC_SYNC_API_URL", "Sync API URL (purchaseLineSync)", "Business Central sync", False, "text"),
+    ("BC_T1_REFRESH_API_URL", "T1 Refresh API URL (t1Refresh, blank = same place as the Sync API)", "Business Central sync", False, "text"),
     ("SYNC_ESTIMATE_DAYS", "Estimate Delivery Date = latest scheduled date + days", "Business Central sync", False, "int"),
     ("SYNC_DATE_FORMAT", "Previous Scheduled Date format (e.g. %d-%m-%Y)", "Business Central sync", False, "text"),
     ("BC_T1_API_URL", "T1 Process Report API URL (t1ProcessReport)", "T1 Process Report", False, "text"),
@@ -37,6 +38,7 @@ FIELDS = [
     ("CISCO_CACHE_SECONDS", "Result cache (seconds, 0 = off)", "Performance & limits", False, "int"),
 ]
 BY_KEY = {f[0]: f for f in FIELDS}
+OPTIONAL = {"BC_T1_REFRESH_API_URL"}  # may be left blank
 
 
 def public_view():
@@ -81,6 +83,8 @@ def validate(updates):
                 errors[key] = "Must be between 1 and 50"
             elif key == "MAX_PO_PER_SEARCH" and int(val) < 1:
                 errors[key] = "Must be at least 1"
+        elif key in OPTIONAL and not str(val).strip():
+            continue
         elif f[3] is False and key.endswith("URL") and not str(val).startswith(("http://", "https://")):
             errors[key] = "Must start with http:// or https://"
     return errors

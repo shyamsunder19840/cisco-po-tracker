@@ -80,3 +80,14 @@ header.shellbar { justify-content: flex-start; align-items: center; }
 .count-box.c-would_update.has { background: #fef7f1; border-color: #e9730c; }
 .count-box.c-error.has { background: #ffeaea; border-color: #bb0000; }
 .dpill, .pill.sync-updated, .pill.sync-would_update, .pill.sync-error, .pill.sync-no_match, .pill.sync-unchanged { border-radius: 4px; }
+
+/* Live activity in the sync window */
+.activity { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+.spin { width: 14px; height: 14px; border: 2px solid #c9dff5; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+ul.stepper { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+ul.stepper li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 4px; color: var(--muted); }
+ul.stepper li b { color: var(--text); }
+ul.stepper li.active { border-left-color: var(--blue); background: #f5faff; }
+ul.stepper li.done { border-left-color: var(--ok); background: #f1fdf6; }
+ul.stepper li.skip { border-left-color: var(--warn); background: #fef7f1; }

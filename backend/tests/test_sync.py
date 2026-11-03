@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import bcsync  # noqa: E402
 import jobs  # noqa: E402
 import sync  # noqa: E402
+import t1refresh  # noqa: E402
 
 FMT = "%d-%m-%Y"
 
@@ -119,6 +120,12 @@ class RunTests(unittest.TestCase):
             "POCSIN1-S": [bcline("POCSIN1-S", "1")],
         }
         self.patched = []
+        self.t1_calls = []
+        for obj, name in ((t1refresh, "check_api"), (t1refresh, "refresh"), (sync, "t1_by_line"),
+                          (bcsync, "check_api"), (bcsync, "fetch_lines"), (bcsync, "patch_line")):
+            self.addCleanup(setattr, obj, name, getattr(obj, name))   # undo the fakes after each test
+        t1refresh.check_api = lambda: None
+        t1refresh.refresh = lambda docs: self.t1_calls.append(list(docs)) or {"docs": len(docs), "rows": 2 * len(docs)}
         sync.t1_by_line = lambda pos: {("POCSIN1-M", "10000"): {"salesinvoiceno": "SI1"}}
         bcsync.check_api = lambda: None
         bcsync.fetch_lines = lambda docs: [ln for d in docs for ln in self.store.get(d, [])]
@@ -147,6 +154,35 @@ class RunTests(unittest.TestCase):
         st = self.run_sync(True)
         self.assertEqual(self.patched, [])
         self.assertEqual(st["counts"]["would_update"], 3)
+
+    def test_t1_process_data_refreshed_once_for_each_updated_document(self):
+        st = self.run_sync(False)
+        self.assertEqual(sorted(self.t1_calls[0]), ["POCSIN1-M", "POCSIN1-S"])
+        self.assertEqual(len(self.t1_calls), 1)                    # one call per PO, not per line
+        self.assertEqual((st["t1"]["docs"], st["t1"]["rows"], st["t1"]["errors"]), (2, 4, 0))
+        self.assertEqual((st["activity"], st["lines_done"]), ("Finished", 1))
+
+    def test_preview_never_touches_t1(self):
+        st = self.run_sync(True)
+        self.assertEqual(self.t1_calls, [])
+        self.assertEqual(st["t1"]["would"], 2)
+
+    def test_t1_failure_keeps_the_purchase_line_updates(self):
+        def boom(docs):
+            raise RuntimeError("BC says no")
+        t1refresh.refresh = boom
+        st = self.run_sync(False)
+        self.assertEqual(st["counts"]["updated"], 3)
+        self.assertEqual(st["t1"]["errors"], 1)
+        self.assertTrue(any("T1 Process Data not updated" in w for d in st["details"] for w in d["warnings"]))
+
+    def test_missing_t1_api_skips_only_the_t1_step(self):
+        def missing():
+            raise t1refresh.T1RefreshApiMissing("not published")
+        t1refresh.check_api = missing
+        st = self.run_sync(False)
+        self.assertEqual(st["counts"]["updated"], 3)
+        self.assertEqual((self.t1_calls, st["t1"]["skipped"]), ([], "not published"))
 
     def test_missing_api_fails_cleanly(self):
         def boom():

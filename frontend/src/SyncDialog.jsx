@@ -80,6 +80,7 @@ export default function SyncDialog({ job, onClose }) {
                 <li>Updated: CISCO SO Line No. ← SO Line Ref · Shipset ← Line ID Set · CISCO Delivery Status ← Status Code ·
                   Scheduled_Date ← Final Scheduled Ship Date (the old date is added to Previous Scheduled Date).</li>
                 <li>Estimate Delivery Date ← the latest Final Scheduled Ship Date of the PO + the days set in Settings (14); if that lands on a Saturday or Sunday it moves to the following Monday.</li>
+                <li>After the purchase lines of a PO are updated, its <b>T1 Process Data</b> lines are rebuilt in Business Central (same logic as Report 80000).</li>
                 <li>Blank Cisco values never overwrite what is already in Business Central.</li>
                 <li>Only the fetched rows are synced (rows hidden by the Status Code filter are not); the table search box has no effect.</li>
               </ul>
@@ -94,6 +95,25 @@ export default function SyncDialog({ job, onClose }) {
                 <span>{st?.done ?? 0}/{st?.total ?? poCount} POs</span>
               </div>
               <div className="bar"><div style={{ width: `${pct}%` }} /></div>
+              <div className="activity"><span className="spin" aria-hidden /> {st?.activity || "Starting…"}</div>
+              {st && (
+                <ul className="stepper">
+                  <li className={st.lines_done >= st.total ? "done" : "active"}>
+                    <b>1 · Updating purchase lines</b>
+                    <span>{st.lines_done}/{st.total} POs{st.dry_run ? " (preview)" : ""}</span>
+                  </li>
+                  <li className={st.t1.skipped ? "skip" : st.done >= st.total ? "done" : st.lines_done > 0 ? "active" : ""}>
+                    <b>2 · Updating T1 Process Data</b>
+                    <span>
+                      {st.dry_run
+                        ? `${st.t1.would} order(s) would be refreshed`
+                        : st.t1.skipped
+                          ? "skipped — see the note after the sync"
+                          : `${st.t1.docs} order(s) refreshed${st.t1.rows != null ? ` · ${st.t1.rows} lines` : ""}`}
+                    </span>
+                  </li>
+                </ul>
+              )}
             </>
           )}
 
@@ -113,6 +133,21 @@ export default function SyncDialog({ job, onClose }) {
                       </div>
                     ))}
                   </div>
+                  {!st.dry_run && st.t1.skipped && (
+                    <div className="warn">
+                      The purchase lines were synced, but <b>T1 Process Data was not updated</b>: {st.t1.skipped}
+                    </div>
+                  )}
+                  {!st.dry_run && !st.t1.skipped && (
+                    <div className={st.t1.errors ? "warn" : "info"}>
+                      T1 Process Data: {st.t1.docs} purchase order document(s) refreshed
+                      {st.t1.rows != null ? `, ${st.t1.rows} lines created` : ""}
+                      {st.t1.errors > 0 && ` — ${st.t1.errors} PO(s) could not be refreshed (see the warnings below)`}.
+                    </div>
+                  )}
+                  {st.dry_run && st.t1.would > 0 && (
+                    <div className="info">After a real sync, T1 Process Data would be rebuilt for {st.t1.would} purchase order document(s).</div>
+                  )}
                   {st.po_errors.length > 0 && (
                     <div className="error">
                       {st.po_errors.length} PO(s) failed:{" "}

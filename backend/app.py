@@ -96,7 +96,8 @@ def sync_progress(sid):
     st = sync.get(sid)
     if not st:
         return jsonify(error="Unknown sync"), 404
-    out = {k: st[k] for k in ("id", "status", "dry_run", "total", "done", "lines", "counts", "error", "po_errors")}
+    out = {k: st[k] for k in ("id", "status", "dry_run", "total", "done", "lines", "counts", "error", "po_errors",
+                              "activity", "lines_done", "t1")}
     out["details"] = [] if request.args.get("details") == "0" else list(st["details"])
     return jsonify(out)
 

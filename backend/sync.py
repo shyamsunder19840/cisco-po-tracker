@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta
 import bcsync
 import history
 import jobs
+import t1refresh
 
 SYNCS = {}
 WORKERS = 5
@@ -198,9 +199,32 @@ def start(job_id, dry_run=False):
     sid = uuid.uuid4().hex[:12]
     st = {"id": sid, "job_id": job_id, "status": "running", "dry_run": dry_run, "total": len(by_po),
           "done": 0, "lines": len(job["rows"]), "counts": {"updated": 0, "would_update": 0, "unchanged": 0,
-          "no_match": 0, "error": 0}, "details": [], "error": None, "po_errors": [], "started": time.time()}
+          "no_match": 0, "error": 0}, "details": [], "error": None, "po_errors": [], "started": time.time(),
+          # live progress: what is going on right now, and the two steps run for every PO
+          "activity": "Starting…", "lines_done": 0,
+          "t1": {"docs": 0, "rows": None, "would": 0, "errors": 0, "skipped": None}}
     SYNCS[sid] = st
     lock = threading.Lock()
+    t1_lock = threading.Lock()  # T1 entry numbers are taken from the last entry: refresh one PO at a time
+
+    def process(po, rows):
+        """Step 1: update the purchase lines. Step 2: rebuild the T1 Process Data lines of the updated orders."""
+        st["activity"] = f"Updating purchase lines — {po}"
+        res = _sync_po(po, rows, dry_run, days, fmt)
+        with lock:
+            st["lines_done"] += 1
+        docs = sorted({r["doc"] for r in res if r["doc"] and r["status"] == ("would_update" if dry_run else "updated")})
+        t1 = None
+        if docs and dry_run:
+            t1 = {"would": len(docs)}
+        elif docs and st["t1"]["skipped"] is None:
+            with t1_lock:
+                st["activity"] = f"Updating T1 Process Data — {po}"
+                try:
+                    t1 = t1refresh.refresh(docs)
+                except Exception as e:  # noqa: BLE001 - the purchase lines are already saved
+                    t1 = {"error": str(e)}
+        return res, docs, t1
 
     def work():
         try:
@@ -208,12 +232,17 @@ def start(job_id, dry_run=False):
         except Exception as e:  # noqa: BLE001
             st.update(status="failed", error=str(e))
             return
+        if not dry_run:
+            try:
+                t1refresh.check_api()
+            except Exception as e:  # noqa: BLE001 - purchase lines are still synced, T1 Process Data is skipped
+                st["t1"]["skipped"] = str(e)
         with ThreadPoolExecutor(WORKERS) as ex:
-            futs = {ex.submit(_sync_po, po, rows, dry_run, days, fmt): po for po, rows in by_po.items()}
+            futs = {ex.submit(process, po, rows): po for po, rows in by_po.items()}
             for fut in as_completed(futs):
                 po = futs[fut]
                 try:
-                    res = fut.result()
+                    res, docs, t1 = fut.result()
                 except Exception as e:  # noqa: BLE001
                     with lock:
                         st["po_errors"].append({"po": po, "error": str(e)})
@@ -221,11 +250,24 @@ def start(job_id, dry_run=False):
                         st["done"] += 1
                     continue
                 with lock:
+                    if t1 and "error" in t1:
+                        st["t1"]["errors"] += 1
+                        for rec in res:
+                            if rec["doc"] in docs:
+                                rec["warnings"].append(f"T1 Process Data not updated: {t1['error'][:200]}")
+                                break
+                    elif t1 and "would" in t1:
+                        st["t1"]["would"] += t1["would"]
+                    elif t1:
+                        st["t1"]["docs"] += t1["docs"]
+                        if t1["rows"] is not None:
+                            st["t1"]["rows"] = (st["t1"]["rows"] or 0) + t1["rows"]
                     for rec in res:
                         st["counts"][rec["status"]] += 1
                         if (rec["status"] != "unchanged" or rec["warnings"]) and len(st["details"]) < MAX_DETAILS:
                             st["details"].append(rec)
                     st["done"] += 1
+        st["activity"] = "Finished"
         st["status"] = "done"
 
     def finish():
