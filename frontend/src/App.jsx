@@ -48,7 +48,8 @@ export default function App() {
   const timer = useRef(null);
 
   const [database, setDatabase] = useState("");
-  useEffect(() => { getInfo().then((i) => setDatabase(i.database || "")).catch(() => {}); }, []);
+  const loadInfo = () => getInfo().then((i) => setDatabase(i.database || "")).catch(() => {});
+  useEffect(() => { loadInfo(); }, []);
 
   useEffect(() => () => clearInterval(timer.current), []);
 
@@ -126,7 +127,7 @@ export default function App() {
         </button>
       </header>
     <div className="page">
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} onSaved={loadInfo} />}
       {showSync && <SyncDialog job={job} onClose={() => setShowSync(false)} />}
       {showT1 && <T1Dialog onClose={() => setShowT1(false)} prefill={t1Prefill(lastRun)} />}
 

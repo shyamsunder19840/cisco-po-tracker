@@ -17,6 +17,7 @@ FIELDS = [
     ("CISCO_HDR_CLIENT_ID", "Token request - Client ID (sent in the headers)", "Cisco token generation (OAuth)", False, "text"),
     ("CISCO_HDR_CLIENT_SECRET", "Token request - Client secret (sent in the headers)", "Cisco token generation (OAuth)", True, "text"),
     ("CISCO_ORDER_URL", "Order status URL (called with the token above)", "Cisco Order Status API", False, "text"),
+    ("BC_DATABASE", "Database (changes the database name in every Business Central URL below)", "Business Central", False, "choice"),
     ("BC_TENANT", "Tenant ID", "Business Central", False, "text"),
     ("BC_CLIENT_ID", "Client ID", "Business Central", False, "text"),
     ("BC_CLIENT_SECRET", "Client secret", "Business Central", True, "text"),
@@ -40,14 +41,45 @@ FIELDS = [
 BY_KEY = {f[0]: f for f in FIELDS}
 OPTIONAL = {"BC_T1_REFRESH_API_URL"}  # may be left blank
 
+DATABASES = ["Live-Database", "Test-Shyam", "Test-Rishabh"]  # Business Central environments the app can use
+URL_KEYS = ("BC_PO_URL", "BC_SYNC_API_URL", "BC_T1_API_URL", "BC_T1_REFRESH_API_URL")  # URLs that contain the database name
+_DB_IN_URL = re.compile(r"(/v2\.0/(?:[0-9a-fA-F-]{36}/)?)([^/]+)(/)")
+
+
+def current_database():
+    """Database (environment) name found in the configured Business Central URLs, '' if none."""
+    for key in URL_KEYS:
+        m = _DB_IN_URL.search(os.environ.get(key, ""))
+        if m:
+            return m.group(2)
+    return ""
+
+
+def apply_database(name):
+    """Put `name` into every Business Central URL, in .env and in the running process. Returns the keys changed."""
+    changed = []
+    with _lock:
+        for key in URL_KEYS:
+            val = os.environ.get(key, "")
+            new = _DB_IN_URL.sub(lambda m: m.group(1) + name + m.group(3), val, count=1)
+            if val and new != val:
+                set_key(ENV_PATH, key, new, quote_mode="always")
+                os.environ[key] = new
+                changed.append(key)
+    return changed
+
 
 def public_view():
     """Settings for the UI. Secret values are replaced by a boolean 'set' flag."""
     out = []
     for key, label, group, secret, kind in FIELDS:
         val = os.environ.get(key, "")
-        out.append({"key": key, "label": label, "group": group, "secret": secret, "kind": kind,
-                    "value": "" if secret else val, "set": bool(val)})
+        item = {"key": key, "label": label, "group": group, "secret": secret, "kind": kind,
+                "value": "" if secret else val, "set": bool(val)}
+        if kind == "choice":
+            cur = current_database()
+            item.update(value=cur, set=bool(cur), options=DATABASES + ([cur] if cur and cur not in DATABASES else []))
+        out.append(item)
     return out
 
 
@@ -83,6 +115,9 @@ def validate(updates):
                 errors[key] = "Must be between 1 and 50"
             elif key == "MAX_PO_PER_SEARCH" and int(val) < 1:
                 errors[key] = "Must be at least 1"
+        elif f[4] == "choice":
+            if str(val) not in DATABASES:
+                errors[key] = "Choose one of: " + ", ".join(DATABASES)
         elif key in OPTIONAL and not str(val).strip():
             continue
         elif f[3] is False and key.endswith("URL") and not str(val).startswith(("http://", "https://")):
@@ -93,9 +128,13 @@ def validate(updates):
 def save(updates):
     """Persist to .env and apply to the running process. Blank secret = keep existing."""
     clean = {}
+    database = None
     for key, val in updates.items():
         f = BY_KEY.get(key)
         if not f:
+            continue
+        if f[4] == "choice":  # not stored itself: it rewrites the database name inside the URLs (below)
+            database = str(val).strip()
             continue
         val = ", ".join(parse_list(val)) if f[4] == "list" else str(val).strip()
         if f[4] == "bool":
@@ -109,6 +148,8 @@ def save(updates):
         for key, val in clean.items():
             set_key(ENV_PATH, key, val, quote_mode="always")
             os.environ[key] = val
+    if database and database != current_database():
+        clean.update({k: os.environ[k] for k in apply_database(database)})
     return list(clean)
 
 

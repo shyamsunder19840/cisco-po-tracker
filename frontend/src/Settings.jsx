@@ -4,7 +4,7 @@ import { getSettings, saveSettings, testSettings } from "./api.js";
 const toForm = (f) =>
   Object.fromEntries(f.map((x) => [x.key, x.kind === "list" ? x.value.split(/,\s*/).filter(Boolean).join("\n") : x.value]));
 
-export default function Settings({ onClose }) {
+export default function Settings({ onClose, onSaved }) {
   const [fields, setFields] = useState(null);
   const [values, setValues] = useState({});
   const [show, setShow] = useState({});
@@ -38,6 +38,7 @@ export default function Settings({ onClose }) {
       setFields(res.settings);
       setValues(toForm(res.settings));
       setMsg({ type: "ok", text: "Settings saved and applied." });
+      onSaved?.();
     } catch (e) {
       setFieldErrors(e.fields || {});
       setMsg({ type: "error", text: e.message });
@@ -75,7 +76,16 @@ export default function Settings({ onClose }) {
             <fieldset key={g}>
               <legend>{g}</legend>
               {fields.filter((f) => f.group === g).map((f) => (
-                f.kind === "bool" ? (
+                f.kind === "choice" ? (
+                  <label key={f.key} className={fieldErrors[f.key] ? "bad" : ""}>
+                    <span>{f.label}</span>
+                    <select value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)}>
+                      {!values[f.key] && <option value="">(not set)</option>}
+                      {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    {fieldErrors[f.key] && <small className="err">{fieldErrors[f.key]}</small>}
+                  </label>
+                ) : f.kind === "bool" ? (
                   <label key={f.key} className="toggle">
                     <input
                       type="checkbox"
