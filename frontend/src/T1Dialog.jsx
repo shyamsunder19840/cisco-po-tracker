@@ -24,11 +24,12 @@ export default function T1Dialog({ onClose }) {
     setBusy(true);
     setMsg({ type: "info", text: "Reading T1 Process data from Business Central…" });
     try {
-      const { rows, name } = await downloadT1Report({
+      await downloadT1Report({
         from_date: byNumber ? "" : from, to_date: byNumber ? "" : to,
         bso_nos: bsos, customer_pos: cpos, proactive_pos: ppos,
       });
-      setMsg({ type: "ok", text: `Downloaded ${name} (${rows.toLocaleString()} rows).` });
+      onClose(); // the report is downloaded: close this window
+      return;
     } catch (e) {
       setMsg({ type: "error", text: e.message });
     }
@@ -44,10 +45,6 @@ export default function T1Dialog({ onClose }) {
         </div>
 
         <div className="modal-body">
-          <p className="muted">
-            Excel output of Report 80000 (T1 Process Batch): one row per BSO line, with the report&apos;s columns in the
-            same order. It shows the data saved by the last T1 batch run in Business Central.
-          </p>
           <div className="dates">
             <label>BSO Order Date from <input type="date" value={from} disabled={byNumber} onChange={(e) => setFrom(e.target.value)} /></label>
             <label>to <input type="date" value={to} disabled={byNumber} onChange={(e) => setTo(e.target.value)} /></label>

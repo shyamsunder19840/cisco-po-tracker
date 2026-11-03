@@ -178,12 +178,12 @@ def build_xlsx(rows):
     wb = Workbook(write_only=True)
     ws = wb.create_sheet("T1 Process Report")
     for i, (head, _, kind) in enumerate(COLUMNS, 1):
-        ws.column_dimensions[get_column_letter(i)].width = max(12, min(len(head) + 2, 34))
+        ws.column_dimensions[get_column_letter(i)].width = max(14, min(len(head) + 4, 44))  # wide enough for the heading + filter arrow
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(COLUMNS))}{max(len(rows) + 1, 2)}"
     header = []
     for head, _, _ in COLUMNS:
-        c = WriteOnlyCell(ws, value=head)
+        c = WriteOnlyCell(ws, value=head.replace("_", " "))  # report names use '_', the Excel headings use spaces
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="1F4E79")
         header.append(c)

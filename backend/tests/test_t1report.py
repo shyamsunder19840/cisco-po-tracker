@@ -31,8 +31,9 @@ class ExportTests(unittest.TestCase):
     def test_columns_follow_report_dataset_order(self):
         ws = self.sheet([{"bsoNo": "BSO1"}])
         heads = [c.value for c in ws[1]]
-        self.assertEqual(heads[:6], REPORT_ORDER)
-        self.assertEqual(heads[-3:], ["SO_Order_Month", "BSO_Line_Item_No", "Proactive_PO_Buyer_Line_No"])
+        self.assertEqual(heads[:6], [h.replace("_", " ") for h in REPORT_ORDER])   # headings use spaces, not '_'
+        self.assertEqual(heads[-3:], ["SO Order Month", "BSO Line Item No", "Proactive PO Buyer Line No"])
+        self.assertFalse(any("_" in h for h in heads))
         self.assertEqual(len(heads), 64)
         self.assertEqual(len(set(heads)), 64)
 
@@ -40,7 +41,7 @@ class ExportTests(unittest.TestCase):
         ws = self.sheet([{"bsoNo": "BSO1", "bsoLineNo": 20000, "bsoOrderDate": "2026-10-01", "soDate": "2026-09-15",
                           "bsoQuantity": 3.0, "scheduledDate": "0001-01-01", "previousScheduleShipDate": "05-11-26",
                           "lineStatus": "Scheduled"}])
-        h = {c.value: i for i, c in enumerate(ws[1])}
+        h = {c.value.replace(" ", "_"): i for i, c in enumerate(ws[1])}
         row = [c.value for c in ws[2]]
         self.assertEqual(row[h["BSO_No"]], "BSO1")
         self.assertEqual(row[h["BSO_Line_No"]], 20000)
@@ -52,7 +53,7 @@ class ExportTests(unittest.TestCase):
 
     def test_api_field_names_match_ignoring_case(self):
         ws = self.sheet([{"BSONo": "BSO9", "BSOOrderDate": "2026-10-01", "SODate": "2026-12-05"}])
-        h = {c.value: i for i, c in enumerate(ws[1])}
+        h = {c.value.replace(" ", "_"): i for i, c in enumerate(ws[1])}
         row = [c.value for c in ws[2]]
         self.assertEqual((row[h["BSO_No"]], row[h["SO_Order_Month"]]), ("BSO9", "Dec"))
 
