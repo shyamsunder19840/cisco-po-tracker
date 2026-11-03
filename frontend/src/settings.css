@@ -95,3 +95,10 @@ ul.stepper li.skip { border-left-color: var(--warn); background: #fef7f1; }
 /* Collapsible details list in the sync result */
 details.details-box > summary { cursor: pointer; font-weight: 600; color: var(--blue); padding: 6px 0; }
 details.details-box[open] > summary { margin-bottom: 8px; }
+
+/* T1 report filters: collapsed unless filled from the last Check status */
+details.filter-section { border: 1px solid var(--line); border-radius: 4px; padding: 0 12px; }
+details.filter-section > summary { cursor: pointer; padding: 9px 0; font-weight: 600; color: var(--text); }
+details.filter-section[open] { padding-bottom: 12px; }
+details.filter-section[open] > summary { color: var(--blue); }
+details.filter-section textarea { width: 100%; }
