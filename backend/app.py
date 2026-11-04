@@ -139,7 +139,7 @@ def t1_report():
     if not rows:
         return jsonify(error="No T1 Process data found for those filters."), 404
     resp = send_file(t1report.build_xlsx(rows), as_attachment=True,
-                     download_name=f"T1_Process_Report_{f}_to_{t}.xlsx" if f else f"T1_Process_Report_{date.today()}.xlsx",
+                     download_name=f"T1_Report_{f}_to_{t}.xlsx" if f else f"T1_Report_{date.today()}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp.headers["X-Row-Count"] = str(len(rows))
     return resp

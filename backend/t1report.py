@@ -176,7 +176,7 @@ def _cell(kind, value):
 def build_xlsx(rows):
     """Return the workbook as BytesIO. Uses write-only mode so large exports stay light on memory."""
     wb = Workbook(write_only=True)
-    ws = wb.create_sheet("T1 Process Report")
+    ws = wb.create_sheet("T1 Report")
     for i, (head, _, kind) in enumerate(COLUMNS, 1):
         ws.column_dimensions[get_column_letter(i)].width = max(14, min(len(head) + 4, 44))  # wide enough for the heading + filter arrow
     ws.freeze_panes = "A2"

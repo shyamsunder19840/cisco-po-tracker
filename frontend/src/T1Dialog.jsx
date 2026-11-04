@@ -50,9 +50,9 @@ export default function T1Dialog({ onClose, prefill = {} }) {
 
   return (
     <div className="overlay center" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="modal narrow" role="dialog" aria-label="T1 Process Report">
+      <div className="modal narrow" role="dialog" aria-label="T1 Report">
         <div className="drawer-head">
-          <h2>T1 Process Report</h2>
+          <h2>T1 Report</h2>
           {!busy && <button className="icon" onClick={onClose} aria-label="Close">✕</button>}
         </div>
 

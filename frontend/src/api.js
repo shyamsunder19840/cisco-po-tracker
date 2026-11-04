@@ -102,7 +102,7 @@ export async function downloadT1Report(filters) {
     throw new Error(data.error || `Report failed (${r.status})`);
   }
   const rows = Number(r.headers.get("X-Row-Count") || 0);
-  const name = (r.headers.get("Content-Disposition") || "").match(/filename="?([^";]+)"?/)?.[1] || "T1_Process_Report.xlsx";
+  const name = (r.headers.get("Content-Disposition") || "").match(/filename="?([^";]+)"?/)?.[1] || "T1_Report.xlsx";
   const url = URL.createObjectURL(await r.blob());
   const a = document.createElement("a");
   a.href = url;

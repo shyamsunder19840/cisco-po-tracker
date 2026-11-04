@@ -200,8 +200,8 @@ export default function App() {
           >
             Sync into Business Central
           </button>
-          <button className="sync-btn" onClick={() => setShowT1(true)} title="Download the T1 Process Report (Report 80000) as Excel">
-            T1 Process Report
+          <button className="sync-btn" onClick={() => setShowT1(true)} title="Download the T1 Report (Report 80000) as Excel">
+            T1 Report
           </button>
         </div>
         {error && <div className="error">{error}</div>}
