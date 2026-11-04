@@ -142,7 +142,10 @@ def t1_report():
         pl_rows, pl_note = t1report.purchase_lines(rows), ""
     except Exception as e:  # noqa: BLE001 - the T1 sheet is still delivered
         pl_rows, pl_note = None, str(e)[:200]
-    resp = send_file(t1report.build_xlsx(rows, pl_rows, pl_note), as_attachment=True,
+    cisco_rows, job = None, jobs.get(body.get("job_id") or "")
+    if job and job["status"] == "done":  # third sheet: the lines of the last Check status, as shown in the app
+        cisco_rows = sorted(job["rows"], key=lambda r: (str(r.get("PO ID")), str(r.get("PO Line Number")).zfill(6)))
+    resp = send_file(t1report.build_xlsx(rows, pl_rows, pl_note, cisco_rows, _columns_for(cisco_rows or [])), as_attachment=True,
                      download_name=f"T1_Report_{f}_to_{t}.xlsx" if f else f"T1_Report_{date.today()}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp.headers["X-Row-Count"] = str(len(rows))

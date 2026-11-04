@@ -100,6 +100,21 @@ class PurchaseLineSheetTests(unittest.TestCase):
         self.assertEqual(out[0]["documentNo"], "P000-M")
 
 
+class CiscoSheetTests(unittest.TestCase):
+    def test_third_sheet_has_the_app_rows_and_columns(self):
+        cisco = [{"PO ID": "P1", "Quantity": 3, "Status Code": "Closed", "Extra": {"a": 1}}, {"PO ID": "P2", "Quantity": 1}]
+        wb = load_workbook(io.BytesIO(t1report.build_xlsx([{"bsoNo": "B"}], [], "", cisco, ["PO ID", "Quantity", "Status Code", "Extra"]).read()))
+        self.assertEqual(wb.sheetnames, ["T1 Report", "Purchase Lines", "Cisco API Data"])
+        ws = wb["Cisco API Data"]
+        self.assertEqual([c.value for c in ws[1]], ["PO ID", "Quantity", "Status Code", "Extra"])
+        self.assertEqual([c.value for c in ws[2]], ["P1", 3, "Closed", '{"a": 1}'])
+        self.assertEqual([c.value for c in ws[3]], ["P2", 1, None, None])
+
+    def test_no_check_status_means_no_third_sheet(self):
+        wb = load_workbook(io.BytesIO(t1report.build_xlsx([{"bsoNo": "B"}]).read()))
+        self.assertEqual(wb.sheetnames, ["T1 Report"])
+
+
 class CustomerPoTests(unittest.TestCase):
     def test_distinct_prefixed_suffix_stripped(self):
         rows = [{"proactivePONo": "pocsin262700193-M"}, {"ProactivePONo": "POCSIN262700193"},

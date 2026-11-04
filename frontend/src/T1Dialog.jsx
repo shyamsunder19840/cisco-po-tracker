@@ -14,7 +14,7 @@ function Section({ title, open, children }) {
 }
 
 // prefill: the filter of the last "Check status" run ({ cpos, ppos, from, to }), so the report starts with the same values
-export default function T1Dialog({ onClose, prefill = {} }) {
+export default function T1Dialog({ onClose, prefill = {}, jobId }) {
   const [from, setFrom] = useState(prefill.from || monthStart());
   const [to, setTo] = useState(prefill.to || today());
   const [bsos, setBsos] = useState("");
@@ -38,7 +38,7 @@ export default function T1Dialog({ onClose, prefill = {} }) {
     try {
       await downloadT1Report({
         from_date: byNumber ? "" : from, to_date: byNumber ? "" : to,
-        bso_nos: bsos, customer_pos: cpos, proactive_pos: ppos,
+        bso_nos: bsos, customer_pos: cpos, proactive_pos: ppos, job_id: jobId,
       });
       onClose(); // the report is downloaded: close this window
       return;

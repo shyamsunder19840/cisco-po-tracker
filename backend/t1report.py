@@ -4,6 +4,7 @@ The Excel columns are the dataset columns of Report 80000, in the same order and
 Data comes from the custom API page 80054 (businesscentral/Page 80054 T1 Process Report API.al).
 """
 import io
+import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -235,7 +236,29 @@ def _purchase_sheet(wb, pl_rows, note):
         ws.append(out)
 
 
-def build_xlsx(rows, pl_rows=False, pl_note=""):
+CISCO_SHEET = "Cisco API Data"
+
+
+def _cisco_sheet(wb, rows, cols):
+    """Third sheet: the lines of the last Check status, exactly as the app table shows them."""
+    ws = wb.create_sheet(CISCO_SHEET)
+    for i, head in enumerate(cols, 1):
+        ws.column_dimensions[get_column_letter(i)].width = max(14, min(len(head) + 4, 40))
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(max(len(cols), 1))}{max(len(rows) + 1, 2)}"
+    _header_row(ws, cols)
+    for r in rows:
+        ws.append([_plain(r.get(c)) for c in cols])
+
+
+def _plain(v):
+    """Excel-friendly value: numbers stay numbers, nested JSON is written as text."""
+    if v is None or isinstance(v, (str, int, float, bool)):
+        return v
+    return json.dumps(v, ensure_ascii=False)
+
+
+def build_xlsx(rows, pl_rows=False, pl_note="", cisco_rows=None, cisco_cols=()):
     """Return the workbook as BytesIO. Uses write-only mode so large exports stay light on memory.
 
     pl_rows: purchase lines for the second sheet; None = they could not be read (pl_note says why); False = no second sheet."""
@@ -270,6 +293,8 @@ def build_xlsx(rows, pl_rows=False, pl_note=""):
         ws.append(out)
     if pl_rows is not False:
         _purchase_sheet(wb, pl_rows, pl_note)
+    if cisco_rows is not None:
+        _cisco_sheet(wb, cisco_rows, list(cisco_cols))
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
