@@ -24,6 +24,7 @@ function t1Prefill(run) {
   return { from: run.from, to: run.to };
 }
 
+const USER = { name: "Shyam Sunder Singh", initials: "SSS" }; // shown at the right of the header
 const PAGE = 100;
 const today = () => new Date().toISOString().slice(0, 10);
 const monthStart = () => today().slice(0, 8) + "01";
@@ -117,15 +118,29 @@ export default function App() {
   return (
     <>
       <header className="shellbar">
-        <span className="logo" aria-hidden>P</span>
+        <span className="launcher" aria-hidden>
+          {Array.from({ length: 9 }, (_, i) => <i key={i} />)}
+        </span>
         <h1>Cisco PO Status Tracker</h1>
-        <p>Proactive Data Systems Pvt. Ltd.</p>
         <span className="grow" />
-        {database && <span className="dbname" title="Business Central database (environment)">Database: <b>{database}</b></span>}
-        <button className="settings-btn" onClick={() => setShowSettings(true)} title="Settings">
-          <span aria-hidden>&#9881;</span> Settings
-        </button>
+        <span className="company-badge" aria-hidden>PDS</span>
+        {database && (
+          <span className="env" title="Business Central database (environment)">
+            <small>Environment:</small>
+            <b>{database}</b>
+          </span>
+        )}
+        <button className="gear" onClick={() => setShowSettings(true)} title="Settings" aria-label="Settings">&#9881;</button>
+        <span className="user">{USER.name}</span>
+        <span className="avatar" aria-hidden>{USER.initials}</span>
       </header>
+      <nav className="subnav">
+        <span className="company">Proactive Data Systems Pvt. Ltd.</span>
+        <span className="sep" aria-hidden />
+        <button className={view === "home" ? "active" : ""} disabled={busy} onClick={() => setView("home")}>Home</button>
+        <button className={view === "run" ? "active" : ""} onClick={() => setView("run")}>Cisco Orders</button>
+        <button onClick={() => setShowSettings(true)}>Settings</button>
+      </nav>
     <div className="page">
       {showSettings && <Settings onClose={() => setShowSettings(false)} onSaved={loadInfo} />}
       {showSync && <SyncDialog job={job} onClose={() => setShowSync(false)} />}
@@ -134,7 +149,6 @@ export default function App() {
       {view === "home" && <DailyTracker onStart={() => setView("run")} />}
       {view === "run" && (
       <>
-      <button className="back-btn" disabled={busy} onClick={() => setView("home")}>‹ Back to daily tracker</button>
       <section className="card">
         <div className="tabs">
           <button className={tab === "po" ? "active" : ""} onClick={() => setTab("po")}>
