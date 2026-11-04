@@ -6,6 +6,7 @@ Data comes from the custom API page 80054 (businesscentral/Page 80054 T1 Process
 import io
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 
 from openpyxl import Workbook
@@ -173,8 +174,71 @@ def _cell(kind, value):
     return None if value in (None, "") else str(value)
 
 
-def build_xlsx(rows):
-    """Return the workbook as BytesIO. Uses write-only mode so large exports stay light on memory."""
+# Second sheet: the purchase line fields that "Sync into Business Central" reads and writes (see sync.py / bcsync.FIELDS)
+PL_COLUMNS = [
+    ("Document No", "documentNo", "text"),
+    ("Line No", "lineNo", "int"),
+    ("Buyers Line No", "buyersLineNo", "text"),
+    ("CISCO SO Line No", "ciscoSOLineNo", "text"),
+    ("Shipset", "shipset", "text"),
+    ("CISCO Delivery Status", "ciscoDeliveryStatus", "text"),
+    ("Scheduled Date", "scheduledDate", "date"),
+    ("Previous Scheduled Date", "previousScheduledDate", "text"),
+    ("Estimate Delivery Date", "estimateDeliveryDate", "date"),
+]
+PL_SHEET = "Purchase Lines"
+
+
+def purchase_lines(rows, chunk=15, workers=6):
+    """Purchase lines (sync fields only) of every purchase order document that appears in the T1 rows."""
+    docs = sorted({str(r.get("proactivePONo") or r.get("ProactivePONo") or "").strip() for r in rows} - {""})
+    docs = [d for d in docs if _SAFE.match(d)]
+    groups = [docs[i:i + chunk] for i in range(0, len(docs), chunk)]
+    out = []
+    with ThreadPoolExecutor(workers) as ex:
+        for part in ex.map(bcsync.fetch_lines, groups):
+            out += part
+    return sorted(out, key=lambda ln: (str(ln.get("documentNo", "")), int(ln.get("lineNo") or 0)))
+
+
+def _header_row(ws, heads):
+    cells = []
+    for head in heads:
+        c = WriteOnlyCell(ws, value=head)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1F4E79")
+        cells.append(c)
+    ws.append(cells)
+
+
+def _purchase_sheet(wb, pl_rows, note):
+    ws = wb.create_sheet(PL_SHEET)
+    for i, (head, _, _) in enumerate(PL_COLUMNS, 1):
+        ws.column_dimensions[get_column_letter(i)].width = max(14, min(len(head) + 4, 44))
+    if pl_rows is None:  # the lines could not be read: say so instead of leaving the sheet out
+        ws.append([f"Purchase lines could not be read: {note}"])
+        return
+    ws.freeze_panes = "A2"
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(PL_COLUMNS))}{max(len(pl_rows) + 1, 2)}"
+    _header_row(ws, [h for h, _, _ in PL_COLUMNS])
+    for ln in pl_rows:
+        ln = {k.lower(): v for k, v in ln.items()}
+        out = []
+        for _, field, kind in PL_COLUMNS:
+            v = _cell(kind, ln.get(field.lower()))
+            if kind == "date" and v is not None:
+                c = WriteOnlyCell(ws, value=v)
+                c.number_format = DATE_FMT
+                out.append(c)
+            else:
+                out.append(v)
+        ws.append(out)
+
+
+def build_xlsx(rows, pl_rows=False, pl_note=""):
+    """Return the workbook as BytesIO. Uses write-only mode so large exports stay light on memory.
+
+    pl_rows: purchase lines for the second sheet; None = they could not be read (pl_note says why); False = no second sheet."""
     wb = Workbook(write_only=True)
     ws = wb.create_sheet("T1 Report")
     for i, (head, _, kind) in enumerate(COLUMNS, 1):
@@ -204,6 +268,8 @@ def build_xlsx(rows):
             else:
                 out.append(v)
         ws.append(out)
+    if pl_rows is not False:
+        _purchase_sheet(wb, pl_rows, pl_note)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

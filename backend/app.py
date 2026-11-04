@@ -138,7 +138,11 @@ def t1_report():
         return jsonify(error=f"Business Central request failed: {e}"), 502
     if not rows:
         return jsonify(error="No T1 Process data found for those filters."), 404
-    resp = send_file(t1report.build_xlsx(rows), as_attachment=True,
+    try:  # second sheet: the purchase lines of these POs (the fields used by "Sync into Business Central")
+        pl_rows, pl_note = t1report.purchase_lines(rows), ""
+    except Exception as e:  # noqa: BLE001 - the T1 sheet is still delivered
+        pl_rows, pl_note = None, str(e)[:200]
+    resp = send_file(t1report.build_xlsx(rows, pl_rows, pl_note), as_attachment=True,
                      download_name=f"T1_Report_{f}_to_{t}.xlsx" if f else f"T1_Report_{date.today()}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resp.headers["X-Row-Count"] = str(len(rows))

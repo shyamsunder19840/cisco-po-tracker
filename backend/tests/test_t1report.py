@@ -62,6 +62,44 @@ class ExportTests(unittest.TestCase):
                                            "August", "Sept", "Oct", "Nov", "Dec"])
 
 
+class PurchaseLineSheetTests(unittest.TestCase):
+    LN = {"documentNo": "POCSIN1-M", "lineNo": 20000, "buyersLineNo": "2", "ciscoSOLineNo": "1.2", "shipset": "1",
+          "ciscoDeliveryStatus": "Scheduled", "scheduledDate": "2026-11-10", "previousScheduledDate": "01-11-26",
+          "estimateDeliveryDate": "0001-01-01"}
+
+    def book(self, *a):
+        return load_workbook(io.BytesIO(t1report.build_xlsx([{"bsoNo": "B"}], *a).read()))
+
+    def test_second_sheet_has_the_sync_fields(self):
+        wb = self.book([self.LN])
+        self.assertEqual(wb.sheetnames, ["T1 Report", "Purchase Lines"])
+        ws = wb["Purchase Lines"]
+        self.assertEqual([c.value for c in ws[1]], ["Document No", "Line No", "Buyers Line No", "CISCO SO Line No", "Shipset",
+                         "CISCO Delivery Status", "Scheduled Date", "Previous Scheduled Date", "Estimate Delivery Date"])
+        row = [c.value for c in ws[2]]
+        self.assertEqual(row[:6], ["POCSIN1-M", 20000, "2", "1.2", "1", "Scheduled"])
+        self.assertEqual(row[6].date(), date(2026, 11, 10))
+        self.assertEqual((row[7], row[8]), ("01-11-26", None))        # BC's 0001-01-01 = no date
+
+    def test_no_second_sheet_by_default_and_a_note_when_unreadable(self):
+        self.assertEqual(self.book().sheetnames, ["T1 Report"])
+        ws = self.book(None, "API not found")["Purchase Lines"]
+        self.assertIn("API not found", ws["A1"].value)
+
+    def test_purchase_lines_are_read_in_groups_for_the_pos_in_the_rows(self):
+        seen = []
+        orig = t1report.bcsync.fetch_lines
+        t1report.bcsync.fetch_lines = lambda docs: seen.append(list(docs)) or [dict(self.LN, documentNo=d, lineNo=1) for d in docs]
+        try:
+            rows = [{"proactivePONo": f"P{i:03d}-M"} for i in range(40)] + [{"ProactivePONo": "P000-M"}, {"bsoNo": "x"}]
+            out = t1report.purchase_lines(rows, chunk=15)
+        finally:
+            t1report.bcsync.fetch_lines = orig
+        self.assertEqual(sorted(len(g) for g in seen), [10, 15, 15])   # 40 distinct documents in groups of 15
+        self.assertEqual(len(out), 40)
+        self.assertEqual(out[0]["documentNo"], "P000-M")
+
+
 class CustomerPoTests(unittest.TestCase):
     def test_distinct_prefixed_suffix_stripped(self):
         rows = [{"proactivePONo": "pocsin262700193-M"}, {"ProactivePONo": "POCSIN262700193"},
