@@ -18,12 +18,17 @@ def _url():
     return os.environ["BC_SYNC_API_URL"].rstrip("/")
 
 
+# One pooled session: connections (and their TLS handshakes) are reused instead of opened for every request.
+_SESSION = requests.Session()
+_SESSION.mount("https://", requests.adapters.HTTPAdapter(pool_connections=4, pool_maxsize=40))
+
+
 def _request(method, url, retries=2, **kw):
     last = None
     extra = kw.pop("headers", {})
     for attempt in range(retries + 1):
         try:
-            r = requests.request(
+            r = _SESSION.request(
                 method, url, timeout=60,
                 headers={"Authorization": f"Bearer {bc.get_token(force=attempt > 0 and last == 401)}",
                          "Accept": "application/json", **extra},
@@ -66,7 +71,7 @@ def fetch_lines(doc_nos):
     flt = " or ".join("documentNo eq '%s'" % d.replace("'", "''") for d in doc_nos)
     url, params, out = _url(), {"$filter": flt, "$select": ",".join(["id"] + FIELDS)}, []
     while url:
-        r = _request("GET", url, params=params)
+        r = _request("GET", url, params=params, headers={"Prefer": "odata.maxpagesize=5000"})
         if not r.ok:
             raise RuntimeError(f"Reading purchase lines failed: {_err(r)}")
         j = r.json()

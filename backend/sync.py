@@ -22,7 +22,9 @@ import jobs
 import t1refresh
 
 SYNCS = {}
-WORKERS = 5
+WORKERS = 8          # POs processed at the same time
+PATCH_WORKERS = 4    # purchase lines of one PO updated at the same time
+CHUNK = 8            # POs whose lines are read from Business Central with one request
 PREV_MAX = 50  # Purchase Line."Previous Scheduled Date" is Text[50]
 MAXLEN = {"ciscoSOLineNo": 10, "shipset": 5, "ciscoDeliveryStatus": 100}  # field lengths in BC
 MAX_DETAILS = 1000
@@ -139,19 +141,38 @@ def plan_line(row, line, est, fmt, status=None):
     return changes, warnings
 
 
-def _sync_po(po, rows, dry_run, days, fmt):
+def _patch_all(todo):
+    """PATCH the planned lines in parallel (they are separate records). todo: [(rec, line, changes)]."""
+    def one(item):
+        rec, ln, changes = item
+        try:
+            bcsync.patch_line(ln, changes)
+            rec["status"] = "updated"
+        except Exception as e:  # noqa: BLE001 - reported per line
+            rec["status"] = "error"
+            rec["error"] = str(e)
+
+    if len(todo) <= 1:
+        for item in todo:
+            one(item)
+    else:
+        with ThreadPoolExecutor(min(PATCH_WORKERS, len(todo))) as ex:
+            list(ex.map(one, todo))
+
+
+def _sync_po(po, rows, dry_run, days, fmt, lines=None, t1=None, t1_note=""):
+    """lines / t1: already read from Business Central for a group of POs (see prefetch); read here when missing."""
     dates = [d for d in (_to_date(r.get("Final Scheduled Ship Date")) for r in rows) if d]
     est = roll_to_monday(max(dates) + timedelta(days=days)) if dates else None
     by_line = {}
-    for ln in bcsync.fetch_lines([po + "-M", po + "-S"]):
+    for ln in (lines if lines is not None else bcsync.fetch_lines([po + "-M", po + "-S"])):
         by_line.setdefault(str(ln.get("buyersLineNo", "")).strip(), []).append(ln)
-    t1, t1_note = None, ""
-    if any(str(r.get("Status Code", "")).strip().lower() in ("closed", "booked") for r in rows):
+    if t1 is None and not t1_note and any(str(r.get("Status Code", "")).strip().lower() in ("closed", "booked") for r in rows):
         try:
             t1 = t1_by_line([po + "-M", po + "-S"])
         except Exception as e:  # noqa: BLE001 - T1 data is optional; affects Closed / Booked lines only
             t1_note = f"T1 Process data unavailable ({str(e)[:120]})"
-    out = []
+    out, todo = [], []
     for row in rows:
         key = str(row.get("PO Line Number", "")).strip()
         base = {"po": po, "line": key}
@@ -172,14 +193,34 @@ def _sync_po(po, rows, dry_run, days, fmt):
             elif dry_run:
                 rec["status"] = "would_update"
             else:
-                try:
-                    bcsync.patch_line(ln, changes)
-                    rec["status"] = "updated"
-                except Exception as e:  # noqa: BLE001 - reported per line
-                    rec["status"] = "error"
-                    rec["error"] = str(e)
+                todo.append((rec, ln, changes))
             out.append(rec)
+    _patch_all(todo)
     return out
+
+
+def prefetch(pos, rows_by_po):
+    """Read the purchase lines (and the T1 rows needed for Closed / Booked lines) of a group of POs in ONE request each,
+    both requests at the same time. Returns ({po: [lines]}, {(doc, line): t1 row}, note)."""
+    docs = [d for po in pos for d in (po + "-M", po + "-S")]
+    need_t1 = any(str(r.get("Status Code", "")).strip().lower() in ("closed", "booked")
+                  for po in pos for r in rows_by_po[po])
+    with ThreadPoolExecutor(2) as ex:
+        f_lines = ex.submit(bcsync.fetch_lines, docs)
+        f_t1 = ex.submit(t1_by_line, docs) if need_t1 else None
+        lines = f_lines.result()  # a failure here is handled by the caller (the POs fall back to one-by-one reads)
+        t1, note = ({}, "")
+        if f_t1:
+            try:
+                t1 = f_t1.result()
+            except Exception as e:  # noqa: BLE001
+                t1, note = None, f"T1 Process data unavailable ({str(e)[:120]})"
+    by_po = {po: [] for po in pos}
+    for ln in lines:
+        doc = str(ln.get("documentNo", ""))
+        if doc[-2:].upper() in ("-M", "-S") and doc[:-2] in by_po:
+            by_po[doc[:-2]].append(ln)
+    return by_po, t1, note
 
 
 def start(job_id, dry_run=False):
@@ -205,28 +246,50 @@ def start(job_id, dry_run=False):
           "t1": {"docs": 0, "rows": None, "would": 0, "errors": 0, "skipped": None}}
     SYNCS[sid] = st
     lock = threading.Lock()
-    t1_lock = threading.Lock()  # T1 entry numbers are taken from the last entry: refresh one PO at a time
+    pre = {}  # po -> (lines, t1 map, note) read ahead for groups of POs
+
+    def read_ahead(pos):
+        if st["cancel"]:
+            return
+        st["activity"] = "Reading purchase lines from Business Central…"
+        try:
+            lines_by_po, t1, note = prefetch(pos, by_po)
+        except Exception:  # noqa: BLE001 - these POs are read one by one later instead
+            return
+        for po in pos:
+            pre[po] = (lines_by_po[po], t1, note)
 
     def process(po, rows):
-        """Step 1: update the purchase lines. Step 2: rebuild the T1 Process Data lines of the updated orders."""
+        """Step 1: update the purchase lines of one PO."""
         if st["cancel"]:  # cancelled: POs not started yet are skipped, the one in progress finishes
-            return [], [], None
+            return [], []
         st["activity"] = f"Updating purchase lines — {po}"
-        res = _sync_po(po, rows, dry_run, days, fmt)
+        lines, t1, note = pre.get(po, (None, None, ""))
+        res = _sync_po(po, rows, dry_run, days, fmt, lines, t1, note)
         with lock:
             st["lines_done"] += 1
-        docs = sorted({r["doc"] for r in res if r["doc"] and r["status"] == ("would_update" if dry_run else "updated")})
-        t1 = None
-        if docs and dry_run:
-            t1 = {"would": len(docs)}
-        elif docs and st["t1"]["skipped"] is None:
-            with t1_lock:
-                st["activity"] = f"Updating T1 Process Data — {po}"
-                try:
-                    t1 = t1refresh.refresh(docs)
-                except Exception as e:  # noqa: BLE001 - the purchase lines are already saved
-                    t1 = {"error": str(e)}
-        return res, docs, t1
+        return res, sorted({r["doc"] for r in res if r["doc"] and r["status"] == ("would_update" if dry_run else "updated")})
+
+    def refresh_t1(po, docs, res):
+        """Step 2: rebuild the T1 Process Data lines of the updated orders. Runs on ONE thread, one PO after the other
+        (new T1 entry numbers are taken from the last entry), while step 1 carries on with the next POs."""
+        if st["cancel"]:
+            return
+        st["activity"] = f"Updating T1 Process Data — {po}"
+        try:
+            t1 = t1refresh.refresh(docs)
+        except Exception as e:  # noqa: BLE001 - the purchase lines are already saved
+            with lock:
+                st["t1"]["errors"] += 1
+                for rec in res:
+                    if rec["doc"] in docs:
+                        rec["warnings"].append(f"T1 Process Data not updated: {str(e)[:200]}")
+                        break
+            return
+        with lock:
+            st["t1"]["docs"] += t1["docs"]
+            if t1["rows"] is not None:
+                st["t1"]["rows"] = (st["t1"]["rows"] or 0) + t1["rows"]
 
     def work():
         try:
@@ -239,36 +302,34 @@ def start(job_id, dry_run=False):
                 t1refresh.check_api()
             except Exception as e:  # noqa: BLE001 - purchase lines are still synced, T1 Process Data is skipped
                 st["t1"]["skipped"] = str(e)
-        with ThreadPoolExecutor(WORKERS) as ex:
+        pos = list(by_po)
+        with ThreadPoolExecutor(WORKERS) as ex:  # read ahead: one request per group of POs instead of one per PO
+            list(ex.map(read_ahead, [pos[i:i + CHUNK] for i in range(0, len(pos), CHUNK)]))
+        with ThreadPoolExecutor(WORKERS) as ex, ThreadPoolExecutor(1) as t1_ex:
+            t1_futs = []
             futs = {ex.submit(process, po, rows): po for po, rows in by_po.items()}
             for fut in as_completed(futs):
                 po = futs[fut]
                 try:
-                    res, docs, t1 = fut.result()
+                    res, docs = fut.result()
                 except Exception as e:  # noqa: BLE001
                     with lock:
                         st["po_errors"].append({"po": po, "error": str(e)})
                         st["counts"]["error"] += len(by_po[po])
                         st["done"] += 1
                     continue
+                if docs and dry_run:
+                    st["t1"]["would"] += len(docs)
+                elif docs and st["t1"]["skipped"] is None:
+                    t1_futs.append(t1_ex.submit(refresh_t1, po, docs, res))
                 with lock:
-                    if t1 and "error" in t1:
-                        st["t1"]["errors"] += 1
-                        for rec in res:
-                            if rec["doc"] in docs:
-                                rec["warnings"].append(f"T1 Process Data not updated: {t1['error'][:200]}")
-                                break
-                    elif t1 and "would" in t1:
-                        st["t1"]["would"] += t1["would"]
-                    elif t1:
-                        st["t1"]["docs"] += t1["docs"]
-                        if t1["rows"] is not None:
-                            st["t1"]["rows"] = (st["t1"]["rows"] or 0) + t1["rows"]
                     for rec in res:
                         st["counts"][rec["status"]] += 1
                         if (rec["status"] != "unchanged" or rec["warnings"]) and len(st["details"]) < MAX_DETAILS:
                             st["details"].append(rec)
                     st["done"] += 1
+            for f in t1_futs:  # wait for the T1 step to finish the last POs
+                f.result()
         st["activity"] = "Cancelled" if st["cancel"] else "Finished"
         st["status"] = "cancelled" if st["cancel"] else "done"
 

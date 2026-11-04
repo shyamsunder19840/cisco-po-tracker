@@ -21,6 +21,7 @@ class RefreshTests(unittest.TestCase):
         os.environ["BC_SYNC_API_URL"] = "https://bc.example/api/Proactive/ProactiveAPI/v1.0/companies(1)/purchaseLineSync"
         os.environ.pop("BC_T1_REFRESH_API_URL", None)
         self.calls = []
+        t1refresh._IDS.clear()
         self._orig = bcsync._request
 
     def tearDown(self):
@@ -44,6 +45,12 @@ class RefreshTests(unittest.TestCase):
         self.assertIn("documentNo eq 'P-M' or documentNo eq 'P-S'", self.calls[0][2]["params"]["$filter"])
         self.assertEqual([c[1].rsplit("/", 1)[-1] for c in self.calls[1:]], ["Microsoft.NAV.refreshT1Data"] * 2)
         self.assertTrue(self.calls[1][1].endswith("t1Refresh(a1)/Microsoft.NAV.refreshT1Data"))
+
+    def test_order_ids_are_looked_up_only_once(self):
+        self.fake()
+        t1refresh.refresh(["P-M", "P-S"])
+        t1refresh.refresh(["P-M"])
+        self.assertEqual([c[0] for c in self.calls], ["GET", "POST", "POST", "POST"])   # no second GET
 
     def test_action_failure_is_reported(self):
         self.fake(post_status=400)

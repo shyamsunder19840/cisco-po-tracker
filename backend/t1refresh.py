@@ -11,6 +11,7 @@ import bcsync
 
 _SAFE = re.compile(r"^[A-Za-z0-9._\-]+$")
 ACTION = "Microsoft.NAV.refreshT1Data"
+_IDS = {}  # (api url, document no) -> purchase order id
 
 
 class T1RefreshApiMissing(Exception):
@@ -48,17 +49,24 @@ def refresh(docs):
     if bad:
         raise ValueError(f"Invalid document number(s): {', '.join(bad[:3])}")
     url = _url()
-    r = bcsync._request("GET", url, params={"$filter": " or ".join(f"documentNo eq '{d}'" for d in docs),
-                                            "$select": "id,documentNo"})
-    if r.status_code == 404:
-        raise _missing()
-    if not r.ok:
-        raise RuntimeError(f"Finding purchase orders failed: {bcsync._err(r)}")
+    key = lambda d: (url, d.upper())  # noqa: E731
+    missing = [d for d in docs if key(d) not in _IDS]  # purchase order ids never change: look each one up only once
+    if missing:
+        r = bcsync._request("GET", url, params={"$filter": " or ".join(f"documentNo eq '{d}'" for d in missing),
+                                                "$select": "id,documentNo"})
+        if r.status_code == 404:
+            raise _missing()
+        if not r.ok:
+            raise RuntimeError(f"Finding purchase orders failed: {bcsync._err(r)}")
+        for h in r.json().get("value", []):
+            _IDS[key(h["documentNo"])] = h["id"]
     done, rows = 0, None
-    for h in r.json().get("value", []):
-        a = bcsync._request("POST", f"{url}({h['id']})/{ACTION}", json={}, headers={"Content-Type": "application/json"})
+    for d in docs:
+        if key(d) not in _IDS:
+            continue  # no such purchase order header in Business Central
+        a = bcsync._request("POST", f"{url}({_IDS[key(d)]})/{ACTION}", json={}, headers={"Content-Type": "application/json"})
         if not a.ok:
-            raise RuntimeError(f"T1 refresh of {h.get('documentNo')} failed: {bcsync._err(a)}")
+            raise RuntimeError(f"T1 refresh of {d} failed: {bcsync._err(a)}")
         done += 1
         try:
             rows = (rows or 0) + int(a.json()["t1Rows"])
