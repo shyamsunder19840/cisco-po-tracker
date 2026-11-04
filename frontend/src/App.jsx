@@ -31,7 +31,7 @@ const monthStart = () => today().slice(0, 8) + "01";
 
 export default function App() {
   const [view, setView] = useState("home"); // home = daily tracker (first page), run = do the task
-  const [tab, setTab] = useState("po");
+  const [tab, setTab] = useState("date"); // first tab: A · PO Order Date
   const [poText, setPoText] = useState("");
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());
@@ -151,14 +151,14 @@ export default function App() {
       <>
       <section className="card">
         <div className="tabs">
+          <button className={tab === "date" ? "active" : ""} onClick={() => setTab("date")}>
+            A · PO Order Date
+          </button>
           <button className={tab === "po" ? "active" : ""} onClick={() => setTab("po")}>
-            A · PO Numbers
+            B · PO Numbers
           </button>
           <button className={tab === "t1" ? "active" : ""} onClick={() => setTab("t1")}>
-            B · Customer PO No.
-          </button>
-          <button className={tab === "date" ? "active" : ""} onClick={() => setTab("date")}>
-            C · PO Order Date
+            C · Customer PO Numbers
           </button>
         </div>
 

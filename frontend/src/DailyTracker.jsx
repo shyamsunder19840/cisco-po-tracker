@@ -7,7 +7,7 @@ const STATE = {
   pending: { text: "Pending today", cls: "d-pending" },
   none: { text: "No activity", cls: "d-none" },
 };
-const TABS = { po: "PO Numbers", t1: "Customer PO No.", date: "PO Order Date" };
+const TABS = { po: "PO Numbers", t1: "Customer PO Numbers", date: "PO Order Date" };
 const fmtDay = (iso) =>
   new Date(iso + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
