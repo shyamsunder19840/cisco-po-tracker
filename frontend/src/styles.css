@@ -105,3 +105,7 @@ tbody tr:hover { background: #f5f9fd; }
 .subnav button.active { color: var(--text); font-weight: 700; border-bottom-color: var(--blue); }
 .subnav button:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 720px) { .subnav { padding: 0 16px; gap: 12px; overflow-x: auto; } .subnav .company { font-size: 18px; white-space: nowrap; } .shellbar .user { display: none; } }
+
+/* Content area uses the full width of the window (side margins only) */
+.page { max-width: none; padding: 12px 32px 48px; }
+@media (max-width: 720px) { .page { padding: 12px 12px 32px; } }
