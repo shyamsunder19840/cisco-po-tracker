@@ -213,9 +213,9 @@ export default function App() {
             <strong>{job.status === "done" ? "Complete" : "Fetching from Cisco…"}</strong>
             <span>{job.done}/{job.total} POs · {job.row_count ?? rows.length} lines</span>
           </div>
-          <div className="bar"><div style={{ width: `${pct}%` }} /></div>
+          {job.status !== "done" && <div className="bar"><div style={{ width: `${pct}%` }} /></div>}
 
-          {job.filter && (
+          {job.status !== "done" && job.filter && (
             <div className="info">
               Status Code filter is on ({job.filter.length} values) — {job.filtered_out ?? 0} line(s) with other Status Codes were hidden.
               Change this in Settings.
