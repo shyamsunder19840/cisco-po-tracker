@@ -102,3 +102,6 @@ details.filter-section > summary { cursor: pointer; padding: 9px 0; font-weight:
 details.filter-section[open] { padding-bottom: 12px; }
 details.filter-section[open] > summary { color: var(--blue); }
 details.filter-section textarea { width: 100%; }
+
+/* Settings panel: half of the screen width (never narrower than 520px, never wider than the window) */
+.drawer { width: min(100%, max(520px, 50vw)); }
